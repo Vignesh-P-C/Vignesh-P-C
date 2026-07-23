@@ -28,7 +28,7 @@ jobs:
           # Multiplies the animation duration by SPEED_FACTOR (2 = 100% slower)
           SPEED_FACTOR=2
           for f in dist/*.svg; do
-            perl -i -pe "s/(\d+)ms/int(\$1 * ${SPEED_FACTOR})\"ms\"/ge" "$f"
+            perl -i -pe "s/(\d+)ms/int(\$1 * ${SPEED_FACTOR}) . \"ms\"/ge" "$f"
           done
 
       - name: Push to output branch
