@@ -23,6 +23,14 @@ jobs:
             dist/github-contribution-grid-snake.svg
             dist/github-contribution-grid-snake-dark.svg?palette=github-dark
 
+      - name: Slow down the animation
+        run: |
+          # Multiplies the animation duration by SPEED_FACTOR (2 = 100% slower)
+          SPEED_FACTOR=2
+          for f in dist/*.svg; do
+            perl -i -pe "s/(\d+)ms/int(\$1 * ${SPEED_FACTOR})\"ms\"/ge" "$f"
+          done
+
       - name: Push to output branch
         uses: crazy-max/ghaction-github-pages@v4
         with:
