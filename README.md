@@ -1,16 +1,14 @@
-## Hi there 👋
+### Hi, I'm Vignesh 👋
 
-<!--
-**Vignesh-P-C/Vignesh-P-C** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+CS undergrad at VIT (CGPA: 9.22/10), building full-stack products and making them smarter with AI.
 
-Here are some ideas to get you started:
+**What I work with:** React.js · Node.js · Python · PyTorch · LLMs
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+**Featured projects:**
+- 🧠 [TruthLens]([link](https://github.com/Vignesh-P-C/TruthLens---News-Credibility-model)) — Fine-tuned DistilBERT model for fake news detection, served via FastAPI
+- 📚 [Mentiqor]([link](https://github.com/Vignesh-P-C/Mentiqor)) — Full-stack adaptive quiz platform for JEE Mains aspirants
+- 🎮 [ASCENT]([link](https://github.com/Vignesh-P-C/Ascent-2D-combat-game)) — 2D combat game engine built from scratch, zero dependencies
+- 📄 [AskMyDocs]([link](https://github.com/Vignesh-P-C/AskMyDocs---RAG-PDF-Q-A-bot)) — RAG-based PDF Q&A tool (in progress)
+- 📊 [APIP]([link](https://github.com/Vignesh-P-C/Academic-Performance-Intelligence-Platform-APIP)) — Role-based academic analytics dashboard (React, TypeScript, Zustand)
+
+📫 Reach me: [vignesh.pavalur@gmail.com] · [www.linkedin.com/in/vignesh-p-c]
