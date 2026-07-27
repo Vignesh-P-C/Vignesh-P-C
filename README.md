@@ -3,9 +3,9 @@
 CS undergrad at VIT (CGPA: 9.22/10), building full-stack products and making them smarter with AI.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Vignesh-P-C/Vignesh-P-C/output/github-contribution-grid-snake-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Vignesh-P-C/Vignesh-P-C/output/github-contribution-grid-snake.svg">
-  <img alt="github contribution grid snake animation" src="https://raw.githubusercontent.com/Vignesh-P-C/Vignesh-P-C/output/github-contribution-grid-snake.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Vignesh-P-C/Vignesh-P-C/output/web-sling-trail-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Vignesh-P-C/Vignesh-P-C/output/web-sling-trail.svg">
+  <img alt="web-sling trail across contribution activity" src="https://raw.githubusercontent.com/Vignesh-P-C/Vignesh-P-C/output/web-sling-trail.svg">
 </picture>
 
 **What I work with:** React.js · Node.js · Python · PyTorch · LLMs
