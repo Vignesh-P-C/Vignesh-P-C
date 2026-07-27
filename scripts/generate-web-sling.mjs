@@ -17,9 +17,15 @@ if (!USERNAME) {
 // ---------- 1. Fetch + parse contribution data ----------
 
 async function fetchContributions(username) {
-  const res = await fetch(`https://github.com/users/${username}/contributions`);
+  const res = await fetch(`https://github.com/users/${username}/contributions`, {
+    headers: {
+      "User-Agent": "web-sling-trail-generator (github-action)",
+      Accept: "text/html",
+    },
+  });
   if (!res.ok) {
-    throw new Error(`Failed to fetch contributions: HTTP ${res.status}`);
+    const bodySnippet = (await res.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Failed to fetch contributions: HTTP ${res.status} ${res.statusText}\nBody snippet: ${bodySnippet}`);
   }
   const html = await res.text();
 
