@@ -1,6 +1,8 @@
 // Web-Sling Trail — animated SVG generator for GitHub profile READMEs
-// Draws a continuous swinging bezier arc connecting a user's highest-activity
-// contribution days across the past year, with a marker animating along it.
+// Renders your real contribution grid (same squares as your GitHub profile)
+// with an animated web-sling trail swinging between your highest-activity
+// days, overlaid directly on top of it — the same "something moves across
+// my actual grid" effect as the snake animation, with a different mechanic.
 //
 // Data source: https://github.com/users/{username}/contributions
 // This is the same public, unauthenticated endpoint GitHub uses to render
@@ -66,13 +68,11 @@ function toGrid(days) {
 }
 
 // ---------- 3. Select anchor points (peaks) ----------
-// Adaptive threshold: aim for roughly 10-18 anchors regardless of how
-// active or quiet the year was, so the trail always reads cleanly.
+// Adaptive: accumulate from the highest activity level downward until we
+// have enough points for a visually rich trail, regardless of how active
+// or quiet the year was.
 
 function selectAnchors(gridDays, target = 14) {
-  // Accumulate from the highest activity level downward until we have
-  // enough points for a visually rich trail, rather than stopping at the
-  // first threshold that clears a bare minimum.
   let picked = [];
   for (const level of [4, 3, 2, 1]) {
     picked = picked.concat(gridDays.filter((d) => d.level === level));
@@ -80,15 +80,12 @@ function selectAnchors(gridDays, target = 14) {
   }
 
   if (picked.length === 0) {
-    // Degenerate case: no recorded contributions at all. Fall back to a
-    // few evenly spaced points so the animation still renders something.
     const step = Math.max(1, Math.floor(gridDays.length / 8));
     return gridDays.filter((_, i) => i % step === 0);
   }
 
   picked.sort((a, b) => a.date - b.date);
 
-  // Cap density so the trail doesn't become an unreadable tangle.
   if (picked.length > 20) {
     const step = picked.length / 18;
     picked = Array.from({ length: 18 }, (_, i) => picked[Math.floor(i * step)]);
@@ -96,13 +93,13 @@ function selectAnchors(gridDays, target = 14) {
   return picked;
 }
 
-// ---------- 4. Build the bezier trail path ----------
+// ---------- 4. Geometry ----------
 
 const CELL = 11;
 const GAP = 3;
 const PITCH = CELL + GAP;
-const MARGIN_X = 20;
-const MARGIN_Y = 20;
+const MARGIN_X = 16;
+const MARGIN_Y = 16;
 
 function gridToPixel(d) {
   return {
@@ -111,20 +108,14 @@ function gridToPixel(d) {
   };
 }
 
-function buildPath(anchors) {
-  const raw = anchors.map(gridToPixel);
-  // Normalize so the trail always starts near the left margin, regardless
-  // of which week of the year the first anchor falls on — otherwise a
-  // user whose peak days cluster late in the year gets a mostly-blank canvas.
-  const minX = Math.min(...raw.map((p) => p.x));
-  const pts = raw.map((p) => ({ x: p.x - minX + MARGIN_X, y: p.y }));
-
+function buildTrailPath(anchors) {
+  const pts = anchors.map(gridToPixel);
   let d = `M ${pts[0].x},${pts[0].y}`;
   for (let i = 1; i < pts.length; i++) {
     const prev = pts[i - 1];
     const curr = pts[i];
     const dx = curr.x - prev.x;
-    const arcHeight = Math.min(45, Math.max(15, dx * 0.5));
+    const arcHeight = Math.min(40, Math.max(12, Math.abs(dx) * 0.5));
     const cx = (prev.x + curr.x) / 2;
     const cy = Math.min(prev.y, curr.y) - arcHeight;
     d += ` Q ${cx},${cy} ${curr.x},${curr.y}`;
@@ -133,30 +124,40 @@ function buildPath(anchors) {
 }
 
 // ---------- 5. Render SVG ----------
+// GitHub's own contribution-square palette, so the background reads as
+// "your real grid" at a glance rather than a generic heatmap.
 
-function renderSVG({ d, pts }, theme) {
-  const width = Math.max(...pts.map((p) => p.x)) + MARGIN_X;
-  const height = Math.max(...pts.map((p) => p.y)) + MARGIN_Y + 20;
+const PALETTE = {
+  light: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
+  dark: ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"],
+};
 
-  const colors =
-    theme === "dark"
-      ? { bg: "transparent", trail: "#58a6ff", dot: "#f0f6fc", anchor: "#30363d" }
-      : { bg: "transparent", trail: "#0969da", dot: "#0d1117", anchor: "#d0d7de" };
+function renderSVG({ gridDays, trail, theme }) {
+  const maxWeek = Math.max(...gridDays.map((d) => d.week));
+  const width = MARGIN_X * 2 + (maxWeek + 1) * PITCH;
+  const height = MARGIN_Y * 2 + 7 * PITCH;
 
-  const totalDurationMs = Math.round(6000 * pts.length * SPEED_FACTOR);
+  const palette = PALETTE[theme];
+  const accent = theme === "dark" ? "#f78166" : "#cf222e"; // web-trail color, distinct from the green grid
+  const marker = theme === "dark" ? "#f0f6fc" : "#0d1117";
 
-  const anchorDots = pts
-    .map((p) => `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${colors.anchor}" />`)
+  const squares = gridDays
+    .map((d) => {
+      const { x, y } = gridToPixel(d);
+      return `<rect x="${x - CELL / 2}" y="${y - CELL / 2}" width="${CELL}" height="${CELL}" rx="2" fill="${palette[d.level]}" />`;
+    })
     .join("\n    ");
+
+  const totalDurationMs = Math.round(6000 * trail.pts.length * SPEED_FACTOR);
 
   return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" width="100%">
   <style>
-    .trail { fill: none; stroke: ${colors.trail}; stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.85; }
-    .marker { fill: ${colors.dot}; }
+    .trail { fill: none; stroke: ${accent}; stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.9; }
+    .marker { fill: ${marker}; }
   </style>
   <g>
-    ${anchorDots}
-    <path id="trail" class="trail" d="${d}" />
+    ${squares}
+    <path id="trail" class="trail" d="${trail.d}" />
     <circle class="marker" r="4">
       <animateMotion dur="${totalDurationMs}ms" repeatCount="indefinite" rotate="auto">
         <mpath href="#trail" />
@@ -167,24 +168,26 @@ function renderSVG({ d, pts }, theme) {
 }
 
 // ---------- Run ----------
-// Fetch once, render both theme variants from the same anchor set so the
+// Fetch once, render both theme variants from the same data so the
 // light/dark SVGs stay perfectly in sync with each other.
 
 const days = await fetchContributions(USERNAME);
 const gridDays = toGrid(days);
 const anchors = selectAnchors(gridDays);
-const { d, pts } = buildPath(anchors);
+const trail = buildTrailPath(anchors);
 
 const fs = await import("node:fs/promises");
 await fs.mkdir("dist", { recursive: true });
 
 for (const theme of ["light", "dark"]) {
-  const svg = renderSVG({ d, pts }, theme);
+  const svg = renderSVG({ gridDays, trail, theme });
   const outPath = `dist/web-sling-trail${theme === "dark" ? "-dark" : ""}.svg`;
   await fs.writeFile(outPath, svg, "utf8");
   console.log(`Wrote ${outPath}`);
 }
 
+const maxWeek = Math.max(...gridDays.map((d) => d.week));
+console.log(`Grid: ${maxWeek + 1} weeks x 7 days (${gridDays.length} total days)`);
 console.log(`Anchors selected: ${anchors.length}`);
-console.log(`Canvas size: ${Math.max(...pts.map((p) => p.x)) + MARGIN_X} x ${Math.max(...pts.map((p) => p.y)) + MARGIN_Y + 20}`);
-console.log(`Loop duration: ${Math.round(6000 * pts.length * SPEED_FACTOR)}ms`);
+console.log(`Canvas size: ${MARGIN_X * 2 + (maxWeek + 1) * PITCH} x ${MARGIN_Y * 2 + 7 * PITCH}`);
+console.log(`Loop duration: ${Math.round(6000 * trail.pts.length * SPEED_FACTOR)}ms`);
