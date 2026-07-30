@@ -11,19 +11,36 @@
 
 const USERNAME = process.env.GH_USERNAME;
 const SPEED_FACTOR = Number(process.env.SPEED_FACTOR || 1.5);
-// Points at images YOU host in your own repo (main branch) — this script
-// never copies, stores, or redistributes the image content itself, it only
-// references these URLs at render time.
-const HAND_IMAGE_URL =
-  process.env.HAND_IMAGE_URL ||
-  `https://raw.githubusercontent.com/${process.env.GH_USERNAME}/${process.env.GH_USERNAME}/main/assets/spidermanhand.png`;
-const WEB_IMAGE_URL =
-  process.env.WEB_IMAGE_URL ||
-  `https://raw.githubusercontent.com/${process.env.GH_USERNAME}/${process.env.GH_USERNAME}/main/assets/spidermanweb.png`;
+// Local paths (relative to repo root, after actions/checkout) to images YOU
+// provide. These are read from disk and embedded directly into the SVG as
+// base64 data — not referenced by URL — because browsers block an SVG
+// loaded via <img src="...svg"> from fetching its own external resources.
+// Embedding the bytes inline sidesteps that restriction entirely.
+const HAND_IMAGE_PATH = process.env.HAND_IMAGE_PATH || "assets/spidermanhand.png";
+const WEB_IMAGE_PATH = process.env.WEB_IMAGE_PATH || "assets/spidermanweb.png";
 
 if (!USERNAME) {
   console.error("GH_USERNAME environment variable is required");
   process.exit(1);
+}
+
+// ---------- 0. Load local image assets as embeddable data URIs ----------
+
+async function loadImageAsDataUri(relPath) {
+  const fs = await import("node:fs/promises");
+  let buf;
+  try {
+    buf = await fs.readFile(relPath);
+  } catch (err) {
+    throw new Error(
+      `Could not read image at "${relPath}" (from repo root). ` +
+        `Make sure the file exists at that exact path and is committed to the branch this workflow checks out. ` +
+        `Original error: ${err.message}`
+    );
+  }
+  const ext = relPath.split(".").pop().toLowerCase();
+  const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+  return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
 // ---------- 1. Fetch + parse contribution data ----------
@@ -144,27 +161,25 @@ function flashKeyframes(startFrac, endFrac, loopMs) {
   };
 }
 
-function renderHandIcon() {
-  // References an image YOU host — this script does not embed, copy, or
-  // redistribute any image content itself, only a URL to fetch at render
-  // time. Sizing/offset is tuned so the fingertip area (where the pose's
-  // "shooter" point sits) lands near local origin (0,0), which is where
-  // beams originate — adjust HAND_OFFSET_X/Y below if your image's
+function renderHandIcon(dataUri) {
+  // Embedded image data — sizing/offset tuned so the fingertip area (where
+  // the pose's "shooter" point sits) lands near local origin (0,0), which
+  // is where beams originate — adjust offsetX/offsetY if your image's
   // proportions place the hand differently within its frame.
   const w = 28;
   const h = 28;
   const offsetX = -w * 0.55;
   const offsetY = -h * 0.8;
-  return `<image href="${HAND_IMAGE_URL}" x="${offsetX}" y="${offsetY}" width="${w}" height="${h}" />`;
+  return `<image href="${dataUri}" x="${offsetX}" y="${offsetY}" width="${w}" height="${h}" />`;
 }
 
-function renderWebImpact(cx, cy, size) {
+function renderWebImpact(cx, cy, size, dataUri) {
   const x = cx - size / 2;
   const y = cy - size / 2;
-  return `<image href="${WEB_IMAGE_URL}" x="${x}" y="${y}" width="${size}" height="${size}" />`;
+  return `<image href="${dataUri}" x="${x}" y="${y}" width="${size}" height="${size}" />`;
 }
 
-function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
+function renderSVG({ gridDays, maxWeek, shots, loopMs, theme, handImageDataUri, webImageDataUri }) {
   const gridWidth = MARGIN_X * 2 + (maxWeek + 1) * PITCH;
   const gridHeight = MARGIN_Y * 2 + 7 * PITCH;
   const height = gridHeight + HAND_LANE;
@@ -227,7 +242,7 @@ function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
       const impactSize = PITCH * 2.7; // sized to roughly span the 3x3 block
       return `<g opacity="0">
       <animate attributeName="opacity" keyTimes="${keyTimes}" values="${values}" dur="${loopMs}ms" repeatCount="indefinite" />
-      ${renderWebImpact(s.x, s.y, impactSize)}
+      ${renderWebImpact(s.x, s.y, impactSize, webImageDataUri)}
     </g>`;
     })
     .join("\n    ");
@@ -239,7 +254,7 @@ function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
     ${webBursts}
     ${beams}
     <g>
-      ${renderHandIcon()}
+      ${renderHandIcon(handImageDataUri)}
       <animateMotion dur="${loopMs}ms" repeatCount="indefinite"
         path="M ${MARGIN_X},${handY} L ${MARGIN_X + maxWeek * PITCH},${handY}" />
     </g>
@@ -258,11 +273,16 @@ const dayLookup = new Map(gridDays.map((d) => [`${d.week}-${d.weekday}`, d.level
 const loopMs = Math.round((maxWeek + 1) * 350 * SPEED_FACTOR);
 const shots = buildShots({ maxWeek, loopMs, dayLookup });
 
+const handImageDataUri = await loadImageAsDataUri(HAND_IMAGE_PATH);
+const webImageDataUri = await loadImageAsDataUri(WEB_IMAGE_PATH);
+console.log(`Loaded ${HAND_IMAGE_PATH} (${Math.round(handImageDataUri.length / 1024)}KB as base64)`);
+console.log(`Loaded ${WEB_IMAGE_PATH} (${Math.round(webImageDataUri.length / 1024)}KB as base64)`);
+
 const fs = await import("node:fs/promises");
 await fs.mkdir("dist", { recursive: true });
 
 for (const theme of ["light", "dark"]) {
-  const svg = renderSVG({ gridDays, maxWeek, shots, loopMs, theme });
+  const svg = renderSVG({ gridDays, maxWeek, shots, loopMs, theme, handImageDataUri, webImageDataUri });
   const outPath = `dist/web-sling-trail${theme === "dark" ? "-dark" : ""}.svg`;
   await fs.writeFile(outPath, svg, "utf8");
   console.log(`Wrote ${outPath}`);
