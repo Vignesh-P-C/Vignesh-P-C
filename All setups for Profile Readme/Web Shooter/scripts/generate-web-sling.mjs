@@ -11,15 +11,6 @@
 
 const USERNAME = process.env.GH_USERNAME;
 const SPEED_FACTOR = Number(process.env.SPEED_FACTOR || 1.5);
-// Points at images YOU host in your own repo (main branch) — this script
-// never copies, stores, or redistributes the image content itself, it only
-// references these URLs at render time.
-const HAND_IMAGE_URL =
-  process.env.HAND_IMAGE_URL ||
-  `https://raw.githubusercontent.com/${process.env.GH_USERNAME}/${process.env.GH_USERNAME}/main/assets/spidermanhand.png`;
-const WEB_IMAGE_URL =
-  process.env.WEB_IMAGE_URL ||
-  `https://raw.githubusercontent.com/${process.env.GH_USERNAME}/${process.env.GH_USERNAME}/main/assets/spidermanweb.png`;
 
 if (!USERNAME) {
   console.error("GH_USERNAME environment variable is required");
@@ -144,24 +135,19 @@ function flashKeyframes(startFrac, endFrac, loopMs) {
   };
 }
 
-function renderHandIcon() {
-  // References an image YOU host — this script does not embed, copy, or
-  // redistribute any image content itself, only a URL to fetch at render
-  // time. Sizing/offset is tuned so the fingertip area (where the pose's
-  // "shooter" point sits) lands near local origin (0,0), which is where
-  // beams originate — adjust HAND_OFFSET_X/Y below if your image's
-  // proportions place the hand differently within its frame.
-  const w = 28;
-  const h = 28;
-  const offsetX = -w * 0.55;
-  const offsetY = -h * 0.8;
-  return `<image href="${HAND_IMAGE_URL}" x="${offsetX}" y="${offsetY}" width="${w}" height="${h}" />`;
-}
-
-function renderWebImpact(cx, cy, size) {
-  const x = cx - size / 2;
-  const y = cy - size / 2;
-  return `<image href="${WEB_IMAGE_URL}" x="${x}" y="${y}" width="${size}" height="${size}" />`;
+function renderHandIcon(color) {
+  // Abstract geometric glove/fist — deliberately generic, not a reproduction
+  // of any specific costume design. Local origin (0,0) is the web-shooter
+  // aperture, so translating this group aims shots from the right spot.
+  return `
+    <g fill="${color}">
+      <rect x="-6" y="0" width="12" height="14" rx="4" />
+      <rect x="-8" y="12" width="16" height="8" rx="3" />
+      <rect x="-3" y="-6" width="4" height="8" rx="2" />
+      <rect x="1.5" y="-7" width="4" height="9" rx="2" />
+      <rect x="-7.5" y="-4" width="4" height="7" rx="2" />
+      <circle cx="0" cy="-6" r="2" fill="none" stroke="${color}" stroke-width="1" />
+    </g>`;
 }
 
 function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
@@ -172,6 +158,7 @@ function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
 
   const palette = PALETTE[theme];
   const accent = theme === "dark" ? "#f78166" : "#cf222e";
+  const handColor = theme === "dark" ? "#c9d1d9" : "#24292f";
 
   const squares = gridDays
     .map((d) => {
@@ -192,43 +179,13 @@ function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
     .join("\n    ");
 
   const highlights = shots
-    .flatMap((s) => {
-      const startFrac = (s.t + BEAM_MS) / loopMs;
-      const endFrac = (s.t + BEAM_MS + GLOW_MS) / loopMs;
-      const { keyTimes, values } = flashKeyframes(startFrac, endFrac, loopMs);
-
-      // 3x3 block centered on the hit tile, clipped to valid grid bounds.
-      const cells = [];
-      for (let dw = -1; dw <= 1; dw++) {
-        for (let dh = -1; dh <= 1; dh++) {
-          const w = s.col + dw;
-          const r = s.row + dh;
-          if (w < 0 || w > maxWeek || r < 0 || r > 6) continue;
-          cells.push({ w, r });
-        }
-      }
-
-      return cells.map(({ w, r }) => {
-        const baseLevel = dayLookup.get(`${w}-${r}`) ?? 0;
-        const boostedLevel = Math.min(4, baseLevel + 1);
-        const { x, y } = gridToPixel(w, r);
-        return `<rect x="${x - CELL / 2}" y="${y - CELL / 2}" width="${CELL}" height="${CELL}" rx="2" fill="${palette[boostedLevel]}" opacity="0">
-      <animate attributeName="opacity" keyTimes="${keyTimes}" values="${values}" dur="${loopMs}ms" repeatCount="indefinite" />
-    </rect>`;
-      });
-    })
-    .join("\n    ");
-
-  const webBursts = shots
     .map((s) => {
       const startFrac = (s.t + BEAM_MS) / loopMs;
       const endFrac = (s.t + BEAM_MS + GLOW_MS) / loopMs;
       const { keyTimes, values } = flashKeyframes(startFrac, endFrac, loopMs);
-      const impactSize = PITCH * 2.7; // sized to roughly span the 3x3 block
-      return `<g opacity="0">
+      return `<rect x="${s.x - CELL / 2}" y="${s.y - CELL / 2}" width="${CELL}" height="${CELL}" rx="2" fill="${palette[s.boostedLevel]}" opacity="0">
       <animate attributeName="opacity" keyTimes="${keyTimes}" values="${values}" dur="${loopMs}ms" repeatCount="indefinite" />
-      ${renderWebImpact(s.x, s.y, impactSize)}
-    </g>`;
+    </rect>`;
     })
     .join("\n    ");
 
@@ -236,10 +193,9 @@ function renderSVG({ gridDays, maxWeek, shots, loopMs, theme }) {
   <g>
     ${squares}
     ${highlights}
-    ${webBursts}
     ${beams}
     <g>
-      ${renderHandIcon()}
+      ${renderHandIcon(handColor)}
       <animateMotion dur="${loopMs}ms" repeatCount="indefinite"
         path="M ${MARGIN_X},${handY} L ${MARGIN_X + maxWeek * PITCH},${handY}" />
     </g>
