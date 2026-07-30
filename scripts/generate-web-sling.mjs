@@ -26,6 +26,22 @@ if (!USERNAME) {
 
 // ---------- 0. Load local image assets as embeddable data URIs ----------
 
+// Detects real image format from file signature bytes rather than trusting
+// the filename extension — browser-saved images frequently mismatch their
+// extension (e.g. a WebP download named "photo.png"), which causes the
+// browser to reject the mismatched declared MIME type and show a broken
+// image icon even though the file itself is perfectly valid.
+function detectMimeType(buf) {
+  const hex = (start, len) =>
+    buf.subarray(start, start + len).toString("hex");
+
+  if (hex(0, 8) === "89504e470d0a1a0a") return "image/png";
+  if (hex(0, 3) === "ffd8ff") return "image/jpeg";
+  if (hex(0, 4) === "52494646" && hex(8, 4) === "57454250") return "image/webp"; // RIFF....WEBP
+  if (hex(0, 6) === "474946383761" || hex(0, 6) === "474946383961") return "image/gif"; // GIF87a / GIF89a
+  return null; // unrecognized — caller decides how to handle
+}
+
 async function loadImageAsDataUri(relPath) {
   const fs = await import("node:fs/promises");
   let buf;
@@ -38,8 +54,21 @@ async function loadImageAsDataUri(relPath) {
         `Original error: ${err.message}`
     );
   }
+
+  const detected = detectMimeType(buf);
   const ext = relPath.split(".").pop().toLowerCase();
-  const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
+  const extGuess = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : ext === "gif" ? "image/gif" : "image/png";
+  const mime = detected || extGuess;
+
+  if (detected && detected !== extGuess) {
+    console.warn(
+      `Note: "${relPath}" has a .${ext} extension but its actual content is ${detected} — using the real format (${detected}) so the browser can decode it correctly.`
+    );
+  }
+  if (!detected) {
+    console.warn(`Warning: could not identify "${relPath}"'s format from its file signature — falling back to extension guess (${extGuess}). If it still fails to render, the file may be corrupted or an unsupported format.`);
+  }
+
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
