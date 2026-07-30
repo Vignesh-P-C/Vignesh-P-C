@@ -141,7 +141,8 @@ function gridToPixel(week, weekday) {
 // at the hand's then-current column, targeting a random row.
 
 const BEAM_MS = 260; // how long the beam flash lasts
-const GLOW_MS = 2000; // how long the hit tile stays brightened
+const WEB_VISIBLE_MS = 550; // how long the web graphic itself stays visible on impact
+const GLOW_MS = 2000; // how long the hit tile stays brightened (web fades out well before this ends, so the color change is visible on its own)
 
 function buildShots({ maxWeek, loopMs, dayLookup }) {
   const travelWidth = maxWeek * PITCH; // hand moves from week 0 to maxWeek
@@ -266,7 +267,7 @@ function renderSVG({ gridDays, maxWeek, shots, loopMs, theme, handImageDataUri, 
   const webBursts = shots
     .map((s) => {
       const startFrac = (s.t + BEAM_MS) / loopMs;
-      const endFrac = (s.t + BEAM_MS + GLOW_MS) / loopMs;
+      const endFrac = (s.t + BEAM_MS + WEB_VISIBLE_MS) / loopMs;
       const { keyTimes, values } = flashKeyframes(startFrac, endFrac, loopMs);
       const impactSize = PITCH * 2.7; // sized to roughly span the 3x3 block
       return `<g opacity="0">
